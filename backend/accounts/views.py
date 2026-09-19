@@ -221,7 +221,11 @@ class LogoutView(PublicAuthView):
                 )
                 refresh.blacklist()
                 audit(user, "logout")
-        except TokenError, User.DoesNotExist, AuthenticationFailed:
+        except TokenError:
+            pass
+        except User.DoesNotExist:
+            pass
+        except AuthenticationFailed:
             pass
         return clear_cookies(Response({"detail": "Signed out."}))
 
