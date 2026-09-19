@@ -1,0 +1,61 @@
+import type { Role } from "./api";
+export const navigation: Record<Role, [string, string][]> = {
+  ADMIN: [
+    ["dashboard", "Dashboard"],
+    ["students", "Students"],
+    ["teachers", "Teachers"],
+    ["parents", "Parents"],
+    ["batches", "Batches"],
+    ["timetable", "Timetable"],
+    ["attendance", "Attendance"],
+    ["fees", "Fees"],
+    ["materials", "Notes & Materials"],
+    ["exams", "Exams"],
+    ["results", "Results"],
+    ["announcements", "Announcements"],
+    ["settings", "Settings"],
+  ],
+  TEACHER: [
+    ["dashboard", "Dashboard"],
+    ["batches", "My Batches"],
+    ["timetable", "Timetable"],
+    ["attendance", "Attendance"],
+    ["materials", "Notes & Materials"],
+    ["exams", "Exams"],
+    ["results", "Results"],
+    ["announcements", "Announcements"],
+    ["profile", "Profile"],
+  ],
+  STUDENT: [
+    ["dashboard", "Dashboard"],
+    ["timetable", "Timetable"],
+    ["attendance", "Attendance"],
+    ["fees", "Fees"],
+    ["materials", "Notes & Materials"],
+    ["exams", "Exams"],
+    ["results", "Results"],
+    ["announcements", "Announcements"],
+    ["profile", "Profile"],
+  ],
+  PARENT: [
+    ["dashboard", "Dashboard"],
+    ["attendance", "Attendance"],
+    ["fees", "Fees"],
+    ["exams", "Exams"],
+    ["results", "Results"],
+    ["announcements", "Announcements"],
+    ["students", "Child Profile"],
+    ["profile", "My Profile"],
+  ],
+  SUPER_ADMIN: [
+    ["dashboard", "Dashboard"],
+    ["institutes", "Institutes"],
+    ["create-institute", "Create Institute"],
+    ["subscriptions", "Subscriptions"],
+    ["domains", "Domains / Branding"],
+    ["support", "Usage & Support"],
+  ],
+};
+export function canOpen(role: Role, module: string) {
+  return navigation[role].some(([key]) => key === module);
+}
