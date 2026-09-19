@@ -5,3 +5,4 @@ python-dotenv==1.2.3
 # Explicit on all OSes for consistent timezone availability.
 tzdata==2026.4
 djangorestframework-simplejwt==5.5.1
+gunicorn==26.2.0
