@@ -2,6 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
+import { AdminDashboard } from "@/components/admin-dashboard";
 import { EntityDetail } from "@/components/entity-detail";
 import { ModuleFilters } from "@/components/module-filters";
 import { TeacherAttendance } from "@/components/teacher-attendance";
@@ -23,7 +24,12 @@ import {
   type Row,
   type User,
 } from "@/lib/api";
-import { canOpen, navigation } from "@/lib/navigation";
+import {
+  canOpen,
+  navigation,
+  navigationGroups,
+  navSymbols,
+} from "@/lib/navigation";
 import { columns, endpoints, fieldsFor, type Scope } from "@/lib/resources";
 
 const emptyScope: Scope = { students: [], batches: [], subjects: [] };
@@ -816,6 +822,13 @@ export default function Portal({
   const title =
     navigation[user.role].find(([key]) => key === module)?.[1] ??
     "Page unavailable";
+  const dashboardDescription: Record<User["role"], string> = {
+    ADMIN: `Here’s what’s happening at ${brand.name} today.`,
+    TEACHER: "Your classes, students, and teaching priorities in one place.",
+    STUDENT: "Keep up with your classes, learning, and upcoming work.",
+    PARENT: "A clear view of your child’s learning progress and updates.",
+    SUPER_ADMIN: "Monitor institutes and keep the platform running smoothly.",
+  };
   const creatable =
     (admin &&
       [
@@ -856,24 +869,38 @@ export default function Portal({
           </div>
         </div>
         <nav aria-label="Main navigation">
-          {navigation[user.role].map(([key, label], index) => (
-            <Link
-              onClick={() => {
-                setSidebar(false);
-                setPage(1);
-                setQuery("");
-                setSearch("");
-                setNotice("");
-              }}
-              className={key === module ? "active" : ""}
-              key={key}
-              href={`/portal/${key}`}
-            >
-              <span className="nav-icon">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              {label}
-            </Link>
+          {(
+            navigationGroups[user.role] ?? [
+              ["Workspace", navigation[user.role].map(([key]) => key)],
+            ]
+          ).map(([group, modules]) => (
+            <div className="nav-group" key={group}>
+              <span className="nav-group-label">{group}</span>
+              {modules.map((key) => {
+                const label =
+                  navigation[user.role].find(([item]) => item === key)?.[1] ??
+                  key;
+                return (
+                  <Link
+                    onClick={() => {
+                      setSidebar(false);
+                      setPage(1);
+                      setQuery("");
+                      setSearch("");
+                      setNotice("");
+                    }}
+                    className={key === module ? "active" : ""}
+                    key={key}
+                    href={`/portal/${key}`}
+                  >
+                    <span className="nav-icon" aria-hidden="true">
+                      {navSymbols[key] ?? "•"}
+                    </span>
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
           ))}
         </nav>
         <div className="sidebar-bottom">
@@ -911,6 +938,9 @@ export default function Portal({
               </button>
             )}
             <span className="user-name">{user.full_name}</span>
+            <span className="avatar" aria-hidden="true">
+              {user.full_name.slice(0, 1)}
+            </span>
             <button
               type="button"
               className="secondary"
@@ -933,7 +963,7 @@ export default function Portal({
               <h1>{title}</h1>
               <p className="muted">
                 {module === "dashboard"
-                  ? "A clear view of your institute, today."
+                  ? dashboardDescription[user.role]
                   : "View and manage the information that matters."}
               </p>
             </div>
@@ -1052,7 +1082,9 @@ export default function Portal({
                 module,
               ) &&
                 canOpen(user.role, module) && (
-                  <div className="stats">
+                  <div
+                    className={`stats ${module === "dashboard" && admin ? "admin-stats-hidden" : ""}`}
+                  >
                     {Object.entries(stats).map(([key, value]) => (
                       <div className="stat" key={key}>
                         <span>{key.replaceAll("_", " ")}</span>
@@ -1061,12 +1093,19 @@ export default function Portal({
                     ))}
                   </div>
                 )}
-              {module === "dashboard" && (
+              {module === "dashboard" && admin ? (
+                <AdminDashboard stats={stats} sections={dashboardSections} />
+              ) : module === "dashboard" ? (
                 <section className="card">
-                  <h2>Your workspace</h2>
+                  <h2>
+                    {user.role === "ADMIN"
+                      ? "Run your institute with confidence"
+                      : "Your workspace"}
+                  </h2>
                   <p className="muted">
-                    Choose a module to see live records and take your next
-                    action.
+                    {user.role === "ADMIN"
+                      ? "Open a module to review live records and take your next operational action."
+                      : "Choose a module to see live records and take your next action."}
                   </p>
                   <div className="quick-links">
                     {navigation[user.role].slice(1, 7).map(([key, label]) => (
@@ -1077,8 +1116,9 @@ export default function Portal({
                     ))}
                   </div>
                 </section>
-              )}
+              ) : null}
               {module === "dashboard" &&
+                !admin &&
                 dashboardSections.map((section) => (
                   <section className="card" key={section.title}>
                     <div className="section-heading">
