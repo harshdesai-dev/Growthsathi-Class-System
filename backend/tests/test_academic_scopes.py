@@ -136,6 +136,62 @@ class AcademicScopeTests(AcademicFixture):
         self.assertEqual(self.get(f"students/{self.sp.pk}/").status_code, 200)
         self.assertEqual(self.get(f"students/{self.peer_profile.pk}/").status_code, 404)
 
+    def test_student_and_parent_batch_read_scope(self):
+        self.client.force_authenticate(self.student)
+        self.assertEqual(self.get(f"batches/{self.batch.pk}/").status_code, 200)
+        self.assertEqual(self.get(f"batches/{self.next_batch.pk}/").status_code, 404)
+
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.get(f"batches/{self.batch.pk}/").status_code, 200)
+        self.assertEqual(self.get(f"batches/{self.next_batch.pk}/").status_code, 404)
+
+        self.link.is_active = False
+        self.link.save()
+        self.assertEqual(self.get(f"batches/{self.batch.pk}/").status_code, 404)
+
+    def test_student_and_parent_cannot_mutate_batches(self):
+        batch_payload = {
+            "name": "Unauthorized Batch",
+            "academic_year": self.year.pk,
+            "academic_class": self.academic_class.pk,
+            "room": "999",
+            "is_active": True,
+        }
+
+        self.client.force_authenticate(self.student)
+        self.assertEqual(self.post("batches/", batch_payload).status_code, 403)
+
+        response = self.client.patch(
+            f"/api/batches/{self.batch.pk}/",
+            {"name": "Changed by Student"},
+            format="json",
+            HTTP_HOST="a.test",
+        )
+        self.assertEqual(response.status_code, 403)
+
+        response = self.client.delete(
+            f"/api/batches/{self.batch.pk}/",
+            HTTP_HOST="a.test",
+        )
+        self.assertEqual(response.status_code, 403)
+
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.post("batches/", batch_payload).status_code, 403)
+
+        response = self.client.patch(
+            f"/api/batches/{self.batch.pk}/",
+            {"name": "Changed by Parent"},
+            format="json",
+            HTTP_HOST="a.test",
+        )
+        self.assertEqual(response.status_code, 403)
+
+        response = self.client.delete(
+            f"/api/batches/{self.batch.pk}/",
+            HTTP_HOST="a.test",
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_transfer_preserves_history_and_changes_teacher_visibility(self):
         previous = self.sp.enrollments.get(ended_at=None)
         response = self.post(
