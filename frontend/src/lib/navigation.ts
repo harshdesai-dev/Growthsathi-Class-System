@@ -59,3 +59,65 @@ export const navigation: Record<Role, [string, string][]> = {
 export function canOpen(role: Role, module: string) {
   return navigation[role].some(([key]) => key === module);
 }
+
+export const navigationGroups: Partial<Record<Role, [string, string[]][]>> = {
+  ADMIN: [
+    ["Overview", ["dashboard"]],
+    ["Academics", ["students", "teachers", "parents", "batches", "timetable"]],
+    ["Operations", ["attendance", "fees"]],
+    ["Learning", ["materials", "exams", "results"]],
+    ["Communication", ["announcements"]],
+    ["System", ["settings"]],
+  ],
+  TEACHER: [
+    ["Overview", ["dashboard"]],
+    ["Teaching", ["batches", "timetable", "attendance"]],
+    ["Learning", ["materials", "exams", "results"]],
+    ["Communication", ["announcements"]],
+    ["Account", ["profile"]],
+  ],
+  STUDENT: [
+    ["Overview", ["dashboard"]],
+    [
+      "My learning",
+      ["timetable", "attendance", "materials", "exams", "results"],
+    ],
+    ["Account", ["fees", "announcements", "profile"]],
+  ],
+  PARENT: [
+    ["Overview", ["dashboard"]],
+    ["My child", ["attendance", "fees", "exams", "results", "students"]],
+    ["Updates", ["announcements"]],
+    ["Account", ["profile"]],
+  ],
+  SUPER_ADMIN: [
+    ["Overview", ["dashboard"]],
+    [
+      "Institute management",
+      ["institutes", "create-institute", "subscriptions"],
+    ],
+    ["Platform", ["domains", "support"]],
+  ],
+};
+
+export const navSymbols: Record<string, string> = {
+  dashboard: "▦",
+  students: "♙",
+  teachers: "♙",
+  parents: "♙",
+  batches: "▤",
+  timetable: "◷",
+  attendance: "✓",
+  fees: "₹",
+  materials: "▱",
+  exams: "✦",
+  results: "↗",
+  announcements: "◉",
+  settings: "⚙",
+  profile: "◌",
+  institutes: "⌂",
+  "create-institute": "+",
+  subscriptions: "◇",
+  domains: "⌘",
+  support: "?",
+};

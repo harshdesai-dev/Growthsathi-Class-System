@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { message, type Row } from "@/lib/api";
+import { inr } from "@/lib/format";
 
 export type Field = {
   name: string;
@@ -23,6 +24,31 @@ export function text(value: unknown): string {
       .join(" | ");
   }
   return String(value);
+}
+const currencyFields = new Set([
+  "amount",
+  "paid",
+  "pending",
+  "balance",
+  "total_fee",
+  "expected_fees",
+  "fees_collected",
+  "fees_pending",
+  "overdue_fees",
+]);
+function statusTone(value: unknown) {
+  const status = String(value).toUpperCase();
+  if (["PRESENT", "PAID", "ACTIVE", "PUBLISHED", "TRUE"].includes(status))
+    return "success";
+  if (["ABSENT", "OVERDUE", "DISABLED", "FALSE", "CANCELLED"].includes(status))
+    return "danger";
+  if (["LATE", "PENDING", "DRAFT"].includes(status)) return "warning";
+  return "info";
+}
+function cellText(key: string, value: unknown) {
+  return currencyFields.has(key) && value !== null && value !== undefined
+    ? inr(value)
+    : text(value);
 }
 function inputValue(value: unknown, type?: string) {
   if (
@@ -186,9 +212,11 @@ export function DataTable({
               {columns.map(([key]) => (
                 <td key={key}>
                   {["status", "is_active", "is_cancelled"].includes(key) ? (
-                    <span className="badge">{text(row[key])}</span>
+                    <span className={`badge ${statusTone(row[key])}`}>
+                      {text(row[key])}
+                    </span>
                   ) : (
-                    text(row[key])
+                    cellText(key, row[key])
                   )}
                 </td>
               ))}
