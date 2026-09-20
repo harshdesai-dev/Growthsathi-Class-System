@@ -23,6 +23,7 @@ class TenantContextMiddleware:
     def __call__(self, request):
         request.institute = None
         request.platform_context = False
+        request.public_hostname = None
 
         if request.path.startswith("/api/"):
             # Default to Django's validated upstream host.
@@ -39,6 +40,7 @@ class TenantContextMiddleware:
                 "X-GrowthSathi-Host",
                 "",
             )
+
             forwarded_secret = request.headers.get(
                 "X-GrowthSathi-Proxy-Secret",
                 "",
@@ -70,6 +72,11 @@ class TenantContextMiddleware:
 
                 if candidate_hostname:
                     hostname = candidate_hostname
+
+            # Save the trusted public-facing hostname for code that needs
+            # to generate links back to the frontend, such as password
+            # recovery and account activation emails.
+            request.public_hostname = hostname
 
             request.platform_context = (
                 hostname in settings.PLATFORM_HOSTS

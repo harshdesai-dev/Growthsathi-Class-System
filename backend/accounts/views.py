@@ -20,6 +20,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from audit.models import AuditLog
+from institutes.models import InstituteDomain
 
 from .authentication import validate_context
 from .models import AccountStatus, LoginSession, Role, User, normalize_username
@@ -256,8 +257,25 @@ class ChangePasswordView(APIView):
 def send_account_link(request, user, purpose):
     generator = activation_tokens if purpose == "activate" else reset_tokens
     token = generator.make_token(user)
+    public_hostname = getattr(request, "public_hostname", None)
+    if user.institute_id:
+        domains = InstituteDomain.objects.filter(
+            institute_id=user.institute_id,
+            is_active=True,
+            is_verified=True,
+            institute__is_active=True,
+        )
+        if public_hostname and domains.filter(hostname=public_hostname).exists():
+            hostname = public_hostname
+        else:
+            hostname = domains.order_by("pk").values_list("hostname", flat=True).first()
+        if not hostname:
+            raise ValidationError({"detail": "Institute portal domain is unavailable."})
+    else:
+        hostname = public_hostname or request.get_host().split(":", 1)[0].lower().rstrip(".")
     # Fragment keeps recovery credentials out of ordinary HTTP request logs.
-    url = request.build_absolute_uri(f"/account/{purpose}") + f"#uid={user.pk}&token={token}"
+    scheme = "https" if request.is_secure() else "http"
+    url = f"{scheme}://{hostname}/account/{purpose}#uid={user.pk}&token={token}"
     send_mail(
         "Your account access",
         f"Open this link to continue:\n{url}\nThis link expires in one hour.",

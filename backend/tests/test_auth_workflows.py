@@ -1,17 +1,25 @@
 import secrets
 
 from django.core import mail
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from rest_framework.test import APIClient
 
 from accounts.models import AccountStatus, LoginSession, Role, User
 from accounts.tokens import activation_tokens, reset_tokens
+from accounts.views import send_account_link
 from institutes.models import Institute, InstituteDomain
 
 
 @override_settings(
-    ALLOWED_HOSTS=["a.test", "b.test", "platform.test", "unknown.test"],
+    ALLOWED_HOSTS=[
+        "a.test",
+        "b.test",
+        "backend.test",
+        "platform.test",
+        "unknown.test",
+    ],
     PLATFORM_HOSTS=["platform.test"],
+    PROXY_TENANT_SECRET="test-proxy-secret",
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"],
 )
@@ -50,19 +58,28 @@ class AuthWorkflowTests(TestCase):
         self.csrf()
 
     def csrf(self):
-        response = self.client.get("/api/auth/context/", HTTP_HOST=self.host, secure=True)
+        response = self.client.get(
+            "/api/auth/context/",
+            HTTP_HOST=self.host,
+            secure=True,
+            **getattr(self, "forwarded_headers", {}),
+        )
         self.csrf_token = response.json().get("csrfToken", "")
         return response
 
-    def post(self, path, payload=None):
+    def post(self, path, payload=None, host=None, forwarded_headers=None):
         return self.client.post(
             "/api/auth/" + path,
             payload or {},
             format="json",
-            HTTP_HOST=self.host,
-            HTTP_ORIGIN="https://" + self.host,
+            HTTP_HOST=host or self.host,
+            HTTP_ORIGIN="https://" + (host or self.host),
             HTTP_X_CSRFTOKEN=self.csrf_token,
             secure=True,
+            **(
+                forwarded_headers
+                or getattr(self, "forwarded_headers", {})
+            ),
         )
 
     def login(self, username="demo"):
@@ -180,6 +197,72 @@ class AuthWorkflowTests(TestCase):
         self.assertEqual(existing.json(), missing.json())
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("https://a.test/account/reset#", mail.outbox[0].body)
+
+    def test_recovery_link_uses_trusted_public_tenant_hostname(self):
+        self.forwarded_headers = {
+            "HTTP_X_GROWTHSATHI_HOST": "a.test",
+            "HTTP_X_GROWTHSATHI_PROXY_SECRET": "test-proxy-secret",
+        }
+        self.host = "backend.test"
+        self.csrf()
+        self.post("reset/", {"username": "demo"})
+        body = mail.outbox[0].body
+        self.assertIn("https://a.test/account/reset#uid=", body)
+        self.assertNotIn("https://backend.test/account/reset#", body)
+
+    def test_recovery_link_rejects_untrusted_or_cross_tenant_forwarded_host(self):
+        cases = [
+            {
+                "HTTP_X_GROWTHSATHI_HOST": "b.test",
+                "HTTP_X_GROWTHSATHI_PROXY_SECRET": "wrong-secret",
+            },
+        ]
+        for forwarded_headers in cases:
+            with self.subTest(forwarded_headers=forwarded_headers):
+                mail.outbox.clear()
+                self.forwarded_headers = forwarded_headers
+                self.host = "a.test"
+                self.csrf()
+                self.post("reset/", {"username": "demo"})
+                body = mail.outbox[0].body
+                self.assertIn("https://a.test/account/reset#uid=", body)
+                self.assertNotIn("https://b.test/account/reset#", body)
+                self.assertNotIn("https://backend.test/account/reset#", body)
+
+    def test_recovery_link_falls_back_for_cross_tenant_public_hostname(self):
+        request = RequestFactory().get(
+            "/api/auth/reset/",
+            HTTP_HOST="backend.test",
+            secure=True,
+        )
+        request.public_hostname = "b.test"
+        send_account_link(request, self.user, "reset")
+        body = mail.outbox[0].body
+        self.assertIn("https://a.test/account/reset#uid=", body)
+        self.assertNotIn("https://b.test/account/reset#", body)
+
+    def test_activation_link_uses_tenant_hostname(self):
+        pending = User.objects.create_user(
+            "pending",
+            None,
+            institute=self.a,
+            role=Role.TEACHER,
+            full_name="Pending Teacher",
+            status=AccountStatus.PENDING,
+            email="pending@example.invalid",
+        )
+        self.login()
+        response = self.client.post(
+            f"/api/users/{pending.pk}/recovery/",
+            {},
+            format="json",
+            HTTP_HOST="a.test",
+            HTTP_ORIGIN="https://a.test",
+            HTTP_X_CSRFTOKEN=self.csrf_token,
+            secure=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("https://a.test/account/activate#uid=", mail.outbox[0].body)
 
     def test_login_throttled(self):
         for _ in range(10):
