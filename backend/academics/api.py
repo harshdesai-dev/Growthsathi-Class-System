@@ -208,9 +208,17 @@ class BatchViewSet(AdminResourceViewSet):
 
     def initial(self, request, *args, **kwargs):
         viewsets.ModelViewSet.initial(self, request, *args, **kwargs)
+
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             require_admin(request.user)
-        if request.user.role not in (Role.ADMIN, Role.TEACHER):
+            return
+
+        if request.user.role not in (
+            Role.ADMIN,
+            Role.TEACHER,
+            Role.STUDENT,
+            Role.PARENT,
+        ):
             raise PermissionDenied()
 
     def get_queryset(self):
@@ -263,7 +271,11 @@ class StudentViewSet(viewsets.ReadOnlyModelViewSet):
 
     def partial_update(self, request, pk=None):
         require_admin(request.user)
-        serializer = self.get_serializer(self.get_object(), data=request.data, partial=True)
+        serializer = self.get_serializer(
+            self.get_object(),
+            data=request.data,
+            partial=True,
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
@@ -273,7 +285,8 @@ class StudentViewSet(viewsets.ReadOnlyModelViewSet):
         require_admin(request.user)
         return Response(
             EnrollmentSerializer(
-                self.get_object().enrollments.order_by("-started_at"), many=True
+                self.get_object().enrollments.order_by("-started_at"),
+                many=True,
             ).data
         )
 
@@ -297,7 +310,10 @@ class TeacherViewSet(AdminResourceViewSet):
 class ParentViewSet(AdminResourceViewSet):
     module_filters = {
         "batch": ("child_links__student__enrollments__batch_id", "id"),
-        "class": ("child_links__student__enrollments__batch__academic_class_id", "id"),
+        "class": (
+            "child_links__student__enrollments__batch__academic_class_id",
+            "id",
+        ),
         "status": ("user__status", "text"),
     }
     filter_constraints = {
