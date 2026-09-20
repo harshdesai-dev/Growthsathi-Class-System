@@ -1,0 +1,5 @@
+-r requirements.in
+pip-tools==7.6.1
+ruff==0.16.8
+# Explicit cross-platform tooling dependency for a portable development lock.
+colorama==0.4.6
