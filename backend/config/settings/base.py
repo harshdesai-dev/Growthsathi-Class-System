@@ -193,6 +193,10 @@ DEFAULT_FROM_EMAIL = os.getenv(
     "no-reply@example.invalid",
 )
 
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "")
+BREVO_SENDER_NAME = os.getenv("BREVO_SENDER_NAME", "GrowthSathi")
+
 MEDIA_ROOT = BASE_DIR / ".local" / "private-media"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
 
