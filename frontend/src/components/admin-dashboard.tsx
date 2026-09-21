@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { allRows, type Row } from "@/lib/api";
 import { inr, number } from "@/lib/format";
+import { Icon, type IconName } from "./icon";
 
 type DashboardSection = {
   title: string;
@@ -138,13 +139,13 @@ export function AdminDashboard({
     <div className="admin-dashboard">
       <section className="primary-kpis" aria-label="Institute overview">
         <Metric
-          icon="♙"
+          icon="students"
           label="Students"
           value={number(stats.Students)}
           detail={`${number(stats.Batches)} active batches`}
         />
         <Metric
-          icon="✓"
+          icon="attendance"
           label="Attendance today"
           value={todayAttendance === null ? "—" : `${number(todayAttendance)}%`}
           detail={
@@ -154,7 +155,7 @@ export function AdminDashboard({
           }
         />
         <Metric
-          icon="₹"
+          icon="fees"
           label="Fees collected"
           value={inr(collected)}
           detail={
@@ -162,7 +163,7 @@ export function AdminDashboard({
           }
         />
         <Metric
-          icon="◷"
+          icon="fees"
           label="Fees pending"
           value={inr(pending)}
           detail={
@@ -295,7 +296,7 @@ export function AdminDashboard({
                   href={item.href}
                   key={item.title}
                 >
-                  <span aria-hidden="true">!</span>
+                  <span aria-hidden="true"><Icon name="alert" size={15} /></span>
                   <div>
                     <strong>{item.title}</strong>
                     <small>{item.detail}</small>
@@ -306,7 +307,7 @@ export function AdminDashboard({
             </div>
           ) : (
             <div className="on-track">
-              <span>✓</span>
+              <span aria-hidden="true"><Icon name="check" size={16} /></span>
               <div>
                 <strong>Everything looks on track.</strong>
                 <small>
@@ -365,7 +366,7 @@ function Metric({
   detail,
   tone,
 }: {
-  icon: string;
+  icon: IconName;
   label: string;
   value: string;
   detail: string;
@@ -374,7 +375,7 @@ function Metric({
   return (
     <article className={`primary-kpi ${tone ?? ""}`}>
       <span className="kpi-icon" aria-hidden="true">
-        {icon}
+        <Icon name={icon} />
       </span>
       <span className="kpi-label">{label}</span>
       <strong>{value}</strong>
