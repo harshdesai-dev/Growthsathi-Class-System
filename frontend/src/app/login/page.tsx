@@ -1,8 +1,8 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, type Branding, context, message, type User } from "@/lib/api";
+import { InstituteBrand } from "@/components/institute-brand";
 
 export default function Login() {
   const [branding, setBranding] = useState<Branding | null>(null);
@@ -31,18 +31,17 @@ export default function Login() {
     }
   }
   return (
-    <main className="auth-page">
+    <main
+      className="auth-page"
+      style={
+        branding?.primary_color
+          ? ({ "--accent": branding.primary_color } as React.CSSProperties)
+          : undefined
+      }
+    >
       <section className="auth-card">
         <span className="eyebrow">YOUR CLASSROOM, CONNECTED</span>
-        {branding?.has_logo && (
-          <Image
-            src="/api/branding/logo/"
-            width={64}
-            height={64}
-            alt={`${branding.name} logo`}
-            unoptimized
-          />
-        )}
+        {branding && <InstituteBrand name={branding.name} hasLogo={branding.has_logo} size={56} />}
         <h1>{branding?.name ?? "Welcome"}</h1>
         <p className="muted">
           Sign in to your {branding?.platform ? "platform" : "institute"}{" "}
