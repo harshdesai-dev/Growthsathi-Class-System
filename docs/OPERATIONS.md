@@ -44,10 +44,10 @@ In frontend run npm.cmd run lint, npm.cmd run typecheck, npm.cmd test and npm.cm
 
 ## Before deployment
 
-Set DJANGO_SETTINGS_MODULE=config.settings.production explicitly, with strong secrets and explicit hosts. Configure Secure cookies over HTTPS and trusted CSRF origins. API_BACKEND_URL is a server-only Next setting (default http://127.0.0.1:8000).
+Set DJANGO_SETTINGS_MODULE=config.settings.production explicitly, with strong secrets and explicit hosts. Configure Secure cookies over HTTPS and trusted CSRF origins. API_BACKEND_URL is a server-only Next setting (default http://127.0.0.1:8000). Set the same strong PROXY_TENANT_SECRET in the backend environment and frontend/.env.local; never expose it with a NEXT_PUBLIC_ prefix.
 
-The Next proxy supplies the tenant hostname in X-Forwarded-Host; Django trusts that header. Keep the Django origin private and ensure the ingress strips/replaces client forwarding headers. Configure HTTPS forwarding with the actual trusted deployment topology and verify redirect/cookie behavior before release.
+The Next proxy supplies the tenant hostname in X-GrowthSathi-Host together with X-GrowthSathi-Proxy-Secret. Django accepts that hostname only when the secret matches its private PROXY_TENANT_SECRET. Keep the Django origin private and ensure the ingress strips/replaces client forwarding headers. Configure HTTPS forwarding with the actual trusted deployment topology and verify redirect/cookie behavior before release.
 
-Configure EMAIL_BACKEND for SMTP plus EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD and EMAIL_USE_TLS via private environment settings. Verify actual activation/reset delivery. Persist private media outside ephemeral application storage and authorize every download through Django.
+Configure EMAIL_BACKEND for SMTP plus EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD and EMAIL_USE_TLS via private environment settings. Verify actual activation/reset delivery. Configure all R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME and R2_ENDPOINT_URL together for private Cloudflare R2 media; partial configuration deliberately fails at startup. Authorize every download through Django.
 
 Prepare PostgreSQL and private-media backups, exercise restoration, use a least-privilege production database role without CREATEDB, and schedule expired-token/session/attempt cleanup. Production hosting, delivery, backup and restore verification remain outstanding; do not infer deployment readiness from local tests.
