@@ -11,9 +11,10 @@ if len(SECRET_KEY) < 50:
     raise ImproperlyConfigured("Production requires a strong DJANGO_SECRET_KEY.")
 
 SECURE_SSL_REDIRECT = True
+SECURE_REDIRECT_EXEMPT = [r"^health/$"]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_HSTS_SECONDS = 31536000
 # Subdomain-wide HSTS/proxy trust must be configured with the hosting topology.
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True

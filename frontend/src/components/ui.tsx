@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { Children, type ReactNode, useState } from "react";
 import { message, type Row } from "@/lib/api";
+import { inr } from "@/lib/format";
 
 export type Field = {
   name: string;
@@ -23,6 +24,31 @@ export function text(value: unknown): string {
       .join(" | ");
   }
   return String(value);
+}
+const currencyFields = new Set([
+  "amount",
+  "paid",
+  "pending",
+  "balance",
+  "total_fee",
+  "expected_fees",
+  "fees_collected",
+  "fees_pending",
+  "overdue_fees",
+]);
+function statusTone(value: unknown) {
+  const status = String(value).toUpperCase();
+  if (["PRESENT", "PAID", "ACTIVE", "PUBLISHED", "TRUE", "VERIFIED"].includes(status))
+    return "success";
+  if (["ABSENT", "OVERDUE", "DISABLED", "FALSE", "CANCELLED"].includes(status))
+    return "danger";
+  if (["LATE", "PENDING", "DRAFT", "EXPIRED"].includes(status)) return "warning";
+  return "info";
+}
+function cellText(key: string, value: unknown) {
+  return currencyFields.has(key) && value !== null && value !== undefined
+    ? inr(value)
+    : text(value);
 }
 function inputValue(value: unknown, type?: string) {
   if (
@@ -183,17 +209,19 @@ export function DataTable({
         <tbody>
           {rows.map((row) => (
             <tr key={row.id}>
-              {columns.map(([key]) => (
-                <td key={key}>
-                  {["status", "is_active", "is_cancelled"].includes(key) ? (
-                    <span className="badge">{text(row[key])}</span>
+              {columns.map(([key, label]) => (
+                <td data-label={label} key={key}>
+                  {["status", "payment_status", "is_active", "is_cancelled", "is_verified", "published_at"].includes(key) ? (
+                    <span className={`badge ${statusTone(row[key])}`}>
+                      {key === "published_at" ? (row[key] ? "Published" : "Draft") : text(row[key])}
+                    </span>
                   ) : (
-                    text(row[key])
+                    cellText(key, row[key])
                   )}
                 </td>
               ))}
               {actions && (
-                <td>
+                <td data-label="Actions">
                   <div className="row-actions">{actions(row)}</div>
                 </td>
               )}
@@ -202,5 +230,19 @@ export function DataTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+export function ActionBar({ children }: { children: ReactNode }) {
+  const actions = Children.toArray(children);
+  if (actions.length <= 2) return <>{children}</>;
+  return (
+    <>
+      {actions[0]}
+      <details className="action-overflow">
+        <summary aria-label="More record actions">More</summary>
+        <div>{actions.slice(1)}</div>
+      </details>
+    </>
   );
 }

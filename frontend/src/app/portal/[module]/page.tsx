@@ -1,12 +1,15 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
+import { AdminDashboard } from "@/components/admin-dashboard";
+import { Icon, type IconName } from "@/components/icon";
+import { InstituteBrand } from "@/components/institute-brand";
+import { RoleDashboard } from "@/components/role-dashboard";
 import { EntityDetail } from "@/components/entity-detail";
 import { ModuleFilters } from "@/components/module-filters";
 import { TeacherAttendance } from "@/components/teacher-attendance";
 import { Timetable } from "@/components/timetable";
-import { DataTable, Editor, type Field, text } from "@/components/ui";
+import { ActionBar, DataTable, Editor, type Field, text } from "@/components/ui";
 import {
   AttendanceEntry,
   FeeDetail,
@@ -23,7 +26,12 @@ import {
   type Row,
   type User,
 } from "@/lib/api";
-import { canOpen, navigation } from "@/lib/navigation";
+import {
+  canOpen,
+  navigation,
+  navigationGroups,
+  navIcons,
+} from "@/lib/navigation";
 import { columns, endpoints, fieldsFor, type Scope } from "@/lib/resources";
 
 const emptyScope: Scope = { students: [], batches: [], subjects: [] };
@@ -79,11 +87,16 @@ export default function Portal({
   const [feePlan, setFeePlan] = useState(false);
   const [sidebar, setSidebar] = useState(false);
   const [notifications, setNotifications] = useState<Row[] | null>(null);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   const [child, setChild] = useState("");
   const [uploaded, setUploaded] = useState<number | null>(null);
   const admin = user?.role === "ADMIN";
   const teacher = user?.role === "TEACHER";
   const platform = user?.role === "SUPER_ADMIN";
+  const commandItems = navigation[user?.role ?? "ADMIN"].filter(([, label]) =>
+    label.toLowerCase().includes(commandQuery.trim().toLowerCase()),
+  );
   const reload = useCallback(() => {
     setRevision((value) => value + 1);
     setNotice("Changes saved.");
@@ -127,6 +140,20 @@ export default function Portal({
     return () => {
       active = false;
     };
+  }, []);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen(true);
+      }
+      if (event.key === "Escape") {
+        setCommandOpen(false);
+        setCommandQuery("");
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision reloads server data after a mutation.
   useEffect(() => {
@@ -324,7 +351,7 @@ export default function Portal({
   }
   function rowActions(row: Row) {
     return (
-      <>
+      <ActionBar>
         <button
           type="button"
           className="secondary"
@@ -740,7 +767,7 @@ export default function Portal({
             Usage
           </button>
         )}
-      </>
+      </ActionBar>
     );
   }
   async function upload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -816,6 +843,33 @@ export default function Portal({
   const title =
     navigation[user.role].find(([key]) => key === module)?.[1] ??
     "Page unavailable";
+  const dashboardDescription: Record<User["role"], string> = {
+    ADMIN: `Here’s what’s happening at ${brand.name} today.`,
+    TEACHER: "Your classes, students, and teaching priorities in one place.",
+    STUDENT: "Keep up with your classes, learning, and upcoming work.",
+    PARENT: "A clear view of your child’s learning progress and updates.",
+    SUPER_ADMIN: "Monitor institutes and keep the platform running smoothly.",
+  };
+  const moduleDescription: Record<string, string> = {
+    students: "Manage student profiles, batches and account access.",
+    teachers: "Manage teachers, assignments and teaching access.",
+    parents: "Manage parent accounts and linked students.",
+    batches: "Organize classes, subjects, teachers and students.",
+    timetable: "Plan and manage your institute's lecture schedule.",
+    attendance: "Track and manage attendance across your institute.",
+    fees: "Manage fee obligations, payments and outstanding balances.",
+    materials: "Share learning resources with the right classes and batches.",
+    exams: "Schedule exams and manage marks.",
+    results: "Review and publish student performance.",
+    announcements: "Share important updates with selected audiences.",
+    settings: "Manage institute preferences and academic defaults.",
+    institutes: "Manage client institute access and identity.",
+    "create-institute": "Create a new institute and its initial administrator.",
+    subscriptions: "Manage plans, renewals and service limits.",
+    domains: "Manage verified domains and institute branding.",
+    support: "Review usage and support signals across institutes.",
+    profile: "Review and manage your personal account details.",
+  };
   const creatable =
     (admin &&
       [
@@ -839,41 +893,45 @@ export default function Portal({
     >
       <aside className={`sidebar ${sidebar ? "open" : ""}`}>
         <div className="brand">
-          {brand.has_logo ? (
-            <Image
-              src="/api/branding/logo/"
-              width={38}
-              height={40}
-              alt={`${brand.name} logo`}
-              unoptimized
-            />
-          ) : (
-            <span className="brand-mark">{brand.name.slice(0, 1)}</span>
-          )}
+          <InstituteBrand name={brand.name} hasLogo={brand.has_logo} />
           <div>
             <strong>{brand.name}</strong>
             <small>{platform ? "PLATFORM CONTROL" : "CLASS MANAGEMENT"}</small>
           </div>
         </div>
         <nav aria-label="Main navigation">
-          {navigation[user.role].map(([key, label], index) => (
-            <Link
-              onClick={() => {
-                setSidebar(false);
-                setPage(1);
-                setQuery("");
-                setSearch("");
-                setNotice("");
-              }}
-              className={key === module ? "active" : ""}
-              key={key}
-              href={`/portal/${key}`}
-            >
-              <span className="nav-icon">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              {label}
-            </Link>
+          {(
+            navigationGroups[user.role] ?? [
+              ["Workspace", navigation[user.role].map(([key]) => key)],
+            ]
+          ).map(([group, modules]) => (
+            <div className="nav-group" key={group}>
+              <span className="nav-group-label">{group}</span>
+              {modules.map((key) => {
+                const label =
+                  navigation[user.role].find(([item]) => item === key)?.[1] ??
+                  key;
+                return (
+                  <Link
+                    onClick={() => {
+                      setSidebar(false);
+                      setPage(1);
+                      setQuery("");
+                      setSearch("");
+                      setNotice("");
+                    }}
+                    className={key === module ? "active" : ""}
+                    key={key}
+                    href={`/portal/${key}`}
+                  >
+                    <span className="nav-icon" aria-hidden="true">
+                      <Icon name={(navIcons[key] ?? "dashboard") as IconName} />
+                    </span>
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
           ))}
         </nav>
         <div className="sidebar-bottom">
@@ -891,9 +949,16 @@ export default function Portal({
           >
             Menu
           </button>
-          <span className="muted">
-            {brand.name} / {title}
-          </span>
+          <button
+            type="button"
+            className="command-trigger"
+            onClick={() => setCommandOpen(true)}
+            aria-haspopup="dialog"
+          >
+            <Icon name="search" size={16} />
+            <span>Find a page or action</span>
+            <kbd>Ctrl K</kbd>
+          </button>
           <div className="topbar-actions">
             {!platform && (
               <button
@@ -907,10 +972,14 @@ export default function Portal({
                       .catch((e) => setError(message(e)));
                 }}
               >
-                Alerts
+                <Icon name="announcements" size={17} />
+                <span className="sr-only">Alerts</span>
               </button>
             )}
             <span className="user-name">{user.full_name}</span>
+            <span className="avatar" aria-hidden="true">
+              {user.full_name.slice(0, 1)}
+            </span>
             <button
               type="button"
               className="secondary"
@@ -933,8 +1002,8 @@ export default function Portal({
               <h1>{title}</h1>
               <p className="muted">
                 {module === "dashboard"
-                  ? "A clear view of your institute, today."
-                  : "View and manage the information that matters."}
+                  ? dashboardDescription[user.role]
+                  : (moduleDescription[module] ?? "Review the latest authorized information.")}
               </p>
             </div>
             <div className="row-actions">
@@ -1048,11 +1117,11 @@ export default function Portal({
             </section>
           ) : (
             <>
-              {["dashboard", "attendance", "fees", "results"].includes(
-                module,
-              ) &&
+              {["attendance", "fees", "results"].includes(module) &&
                 canOpen(user.role, module) && (
-                  <div className="stats">
+                  <div
+                    className="stats"
+                  >
                     {Object.entries(stats).map(([key, value]) => (
                       <div className="stat" key={key}>
                         <span>{key.replaceAll("_", " ")}</span>
@@ -1061,35 +1130,16 @@ export default function Portal({
                     ))}
                   </div>
                 )}
-              {module === "dashboard" && (
-                <section className="card">
-                  <h2>Your workspace</h2>
-                  <p className="muted">
-                    Choose a module to see live records and take your next
-                    action.
-                  </p>
-                  <div className="quick-links">
-                    {navigation[user.role].slice(1, 7).map(([key, label]) => (
-                      <Link key={key} href={`/portal/${key}`}>
-                        {label}
-                        <span>Open &rarr;</span>
-                      </Link>
-                    ))}
-                  </div>
-                </section>
+              {module === "dashboard" && admin ? (
+                <AdminDashboard stats={stats} sections={dashboardSections} />
+              ) : null}
+              {module === "dashboard" && !admin && (
+                <RoleDashboard
+                  role={user.role}
+                  stats={stats}
+                  sections={dashboardSections}
+                />
               )}
-              {module === "dashboard" &&
-                dashboardSections.map((section) => (
-                  <section className="card" key={section.title}>
-                    <div className="section-heading">
-                      <h2>{section.title}</h2>
-                      <Link href={`/portal/${section.module}`}>
-                        Open module
-                      </Link>
-                    </div>
-                    <DataTable rows={section.rows} columns={section.columns} />
-                  </section>
-                ))}
               {summarySections.map((section) => (
                 <section className="card" key={section.title}>
                   <h2>{section.title}</h2>
@@ -1390,6 +1440,74 @@ export default function Portal({
           )}
         </main>
       </div>
+      <nav className="mobile-nav" aria-label="Quick navigation">
+        {navigation[user.role]
+          .filter(([key]) => ["dashboard", "attendance", "timetable", "fees"].includes(key))
+          .slice(0, 4)
+          .map(([key, label]) => (
+            <Link
+              className={key === module ? "active" : ""}
+              href={`/portal/${key}`}
+              key={key}
+            >
+              <Icon name={(navIcons[key] ?? "dashboard") as IconName} size={17} />
+              {label}
+            </Link>
+          ))}
+        <button type="button" onClick={() => setSidebar(true)}>
+          <Icon name="more" size={17} />
+          More
+        </button>
+      </nav>
+      {commandOpen && (
+        <div className="modal-backdrop command-backdrop">
+          <section
+            className="command-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Find a page or action"
+          >
+            <div className="command-input">
+              <Icon name="search" size={17} />
+              <input
+                autoFocus
+                placeholder="Find a page or action..."
+                value={commandQuery}
+                onChange={(event) => setCommandQuery(event.target.value)}
+              />
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setCommandOpen(false);
+                  setCommandQuery("");
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <div className="command-results">
+              {commandItems.length ? (
+                commandItems.map(([key, label]) => (
+                  <Link
+                    href={`/portal/${key}`}
+                    key={key}
+                    onClick={() => {
+                      setCommandOpen(false);
+                      setCommandQuery("");
+                    }}
+                  >
+                    <Icon name={(navIcons[key] ?? "dashboard") as IconName} size={17} />
+                    {label}
+                  </Link>
+                ))
+              ) : (
+                <p className="muted">No matching pages for this role.</p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
       {edit && (
         <Editor {...edit} onSave={edit.save} onClose={() => setEdit(null)} />
       )}
