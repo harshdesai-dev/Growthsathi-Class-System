@@ -305,17 +305,19 @@ export default function Portal({
   }
   function createInstitute() {
     const fields = [
-      ...fieldsFor("institutes", scope, catalogs, "SUPER_ADMIN"),
+      ...fieldsFor("institutes", scope, catalogs, "SUPER_ADMIN").map((field) =>
+        field.name === "email"
+          ? {
+              ...field,
+              label: "Institute email (also initial Admin email)",
+              required: true,
+            }
+          : field,
+      ),
       { name: "admin_name", label: "Initial Admin name", required: true },
       {
         name: "admin_username",
         label: "Initial Admin username",
-        required: true,
-      },
-      {
-        name: "admin_email",
-        label: "Initial Admin recovery email",
-        type: "email",
         required: true,
       },
     ];
@@ -324,14 +326,12 @@ export default function Portal({
       fields,
       initial: { is_active: true, primary_color: "#2563eb" },
       save: async (values) => {
-        const { admin_name, admin_username, admin_email, ...institute } =
-          values;
+        const { admin_name, admin_username, ...institute } = values;
         await mutate("/api/super-admin/institutes/", {
           ...institute,
           initial_admin: {
             full_name: admin_name,
             username: admin_username,
-            email: admin_email,
             role: "ADMIN",
           },
         });
@@ -1552,6 +1552,7 @@ export default function Portal({
         />
       )}
       {detail &&
+        !edit &&
         ![
           "fees",
           "profile",
@@ -1580,7 +1581,10 @@ export default function Portal({
               <dl>
                 {Object.entries(detail)
                   .filter(
-                    ([key]) => !["id", "user", "uploaded_by"].includes(key),
+                    ([key]) =>
+                      !["id", "user", "uploaded_by", "admin_accounts"].includes(
+                        key,
+                      ),
                   )
                   .map(([key, value]) => (
                     <div key={key}>
@@ -1589,6 +1593,63 @@ export default function Portal({
                     </div>
                   ))}
               </dl>
+              {platform && Array.isArray(detail.admin_accounts) && (
+                <>
+                  <h3>Admin Accounts</h3>
+                  <DataTable
+                    rows={detail.admin_accounts as Row[]}
+                    columns={[
+                      ["username", "Username"],
+                      ["full_name", "Full name"],
+                      ["email", "Email"],
+                      ["phone", "Phone"],
+                      ["status", "Status"],
+                    ]}
+                    actions={(account) => (
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() =>
+                          setEdit({
+                            title: "Edit Admin",
+                            fields: [
+                              {
+                                name: "full_name",
+                                label: "Full name",
+                                required: true,
+                              },
+                              {
+                                name: "email",
+                                label: "Email",
+                                type: "email",
+                                required: true,
+                              },
+                              { name: "phone", label: "Phone", type: "tel" },
+                            ],
+                            initial: account,
+                            save: async (values) => {
+                              await api(
+                                `/api/super-admin/institutes/${detail.id}/admin_accounts/${account.id}/`,
+                                "PATCH",
+                                values,
+                              );
+                              const updated = await api<Row>(
+                                `/api/super-admin/institutes/${detail.id}/`,
+                              );
+                              setDetail(updated);
+                              reload();
+                              setNotice("Admin account updated.");
+                            },
+                          })
+                        }
+                      >
+                        Edit Admin
+                      </button>
+                    )}
+                  />
+                  {notice && <p role="status">{notice}</p>}
+                </>
+              )}
             </section>
           </div>
         )}

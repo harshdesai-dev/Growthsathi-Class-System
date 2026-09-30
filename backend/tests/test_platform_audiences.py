@@ -66,6 +66,7 @@ class PlatformAndAudienceTests(AcademicFixture):
             {
                 "name": "Third Demo",
                 "slug": "third",
+                "email": "owner@example.invalid",
                 "initial_admin": {
                     "username": "owner",
                     "full_name": "Owner",

@@ -118,15 +118,27 @@ class LogoView(APIView):
         )
 
 
+class AdminAccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "username", "full_name", "email", "phone", "status"]
+        read_only_fields = ["id", "username", "status"]
+        extra_kwargs = {"email": {"allow_blank": False}}
+
+    def validate(self, attrs):
+        forbidden = set(self.initial_data) - {"full_name", "email", "phone"}
+        if forbidden:
+            raise ValidationError({key: "This field cannot be edited." for key in forbidden})
+        return attrs
+
+
 class InstituteSerializer(serializers.ModelSerializer):
     admin_accounts = serializers.SerializerMethodField()
 
     def get_admin_accounts(self, institute):
-        return list(
-            User.objects.filter(institute=institute, role=Role.ADMIN).values(
-                "id", "username", "full_name", "status"
-            )
-        )
+        return AdminAccountSerializer(
+            User.objects.filter(institute=institute, role=Role.ADMIN), many=True
+        ).data
 
     initial_admin = UserSerializer(write_only=True, required=False)
 
@@ -157,12 +169,27 @@ class InstituteSerializer(serializers.ModelSerializer):
             raise ValidationError("Use account recovery for existing institutes.")
         if attrs.get("initial_admin", {}).get("role", Role.ADMIN) != Role.ADMIN:
             raise ValidationError("Initial account must be an Admin.")
+        if not self.instance:
+            email = attrs.get("email")
+            if not email:
+                raise ValidationError({"email": "Provide an email for initial Admin onboarding."})
+            attrs["email"] = User.objects.normalize_email(email)
+            admin_email = attrs["initial_admin"].get("email")
+            if (
+                admin_email is not None
+                and User.objects.normalize_email(admin_email) != attrs["email"]
+            ):
+                raise ValidationError(
+                    {"initial_admin": {"email": "Must match the institute email; omit this field."}}
+                )
         return attrs
 
+    @transaction.atomic
     def create(self, attrs):
         admin = attrs.pop("initial_admin")
         institute = Institute.objects.create(**attrs)
         admin["role"] = Role.ADMIN
+        admin["email"] = institute.email
         UserSerializer(context=self.context).create({**admin, "institute_id": institute.pk})
         InstituteSettings.objects.create(institute=institute)
         return institute
@@ -225,6 +252,19 @@ class InstituteViewSet(viewsets.ModelViewSet):
         platform_audit(request.user, institute, "admin-status", "User", user.pk)
         return Response({"detail": "Admin access updated."})
 
+    @action(detail=True, methods=["patch"], url_path=r"admin_accounts/(?P<admin_id>[0-9]+)")
+    @transaction.atomic
+    def edit_admin(self, request, pk=None, admin_id=None):
+        institute = self.get_object()
+        user = get_object_or_404(
+            User.objects.select_for_update(), pk=admin_id, institute=institute, role=Role.ADMIN
+        )
+        serializer = AdminAccountSerializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        platform_audit(request.user, institute, "admin-update", "User", user.pk)
+        return Response(serializer.data)
+
     @action(detail=True, methods=["post"])
     def admin_recovery(self, request, pk=None):
         institute = self.get_object()
@@ -250,7 +290,12 @@ class InstituteViewSet(viewsets.ModelViewSet):
         generator = activation_tokens if purpose == "activate" else reset_tokens
         token = generator.make_token(user)
         url = f"https://{domain.hostname}/account/{purpose}#uid={user.pk}&token={token}"
-        send_mail("Account recovery", url, settings.DEFAULT_FROM_EMAIL, [user.email])
+        subject = (
+            "Activate your GrowthSathi Admin Account"
+            if purpose == "activate"
+            else "Reset your GrowthSathi Admin Password"
+        )
+        send_mail(subject, url, settings.DEFAULT_FROM_EMAIL, [user.email])
         platform_audit(request.user, institute, "admin-recovery", "User", user.pk)
         return Response({"detail": "Recovery instructions sent."})
 
